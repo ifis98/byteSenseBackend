@@ -37,53 +37,57 @@ const report = require("../model/report");
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY); // set this in .env
 
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 
-router.post("/createCheckoutSession", async (req, res) => {
+router.post("/createCheckoutSession", upload.fields([
+  { name: 'upperScan', maxCount: 1 },
+  { name: 'lowerScan', maxCount: 1 },
+]), async (req, res) => {
   try {
     const {
-      caseName,
-      arch,
-      type,
-      maxUndercut,
-      passiveSpacer,
+      caseName, arch, type,
+      maxUndercut, passiveSpacer,
       instructions,
-      upperScanName,
-      lowerScanName,
     } = req.body;
 
+    const upperScanFile = req.files?.upperScan?.[0];
+    const lowerScanFile = req.files?.lowerScan?.[0];
+
+    if (!upperScanFile || !lowerScanFile) {
+      return res.status(400).json({ error: "Both STL files are required." });
+    }
+
+    const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `Nightguard - ${caseName || "Custom Order"}`,
-              description: `Type: ${type}, Arch: ${arch}, Spacer: ${passiveSpacer}mm, Undercut: ${maxUndercut}mm`,
-              metadata: {
-                instructions,
-                upperScanName,
-                lowerScanName,
-              },
-            },
-            unit_amount: 19900, // $199.00 in cents
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          unit_amount: 29900,
+          product_data: {
+            name: `Nightguard - ${caseName || "Custom Order"}`,
+            description: `Arch: ${arch}, Type: ${type}`,
+            metadata: {
+              maxUndercut, passiveSpacer, instructions,
+              upperScanFile: upperScanFile.originalname,
+              lowerScanFile: lowerScanFile.originalname,
+            }
           },
-          quantity: 1,
         },
-      ],
+        quantity: 1,
+      }],
       mode: "payment",
       success_url: `${req.headers.origin}/order-success`,
       cancel_url: `${req.headers.origin}/order`,
     });
 
-    // ✅ Return the sessionId for Stripe.js to redirect
     res.status(200).json({ sessionId: session.id });
   } catch (err) {
     console.error("Stripe error:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 router.get("/patientRequest", auth, async (req, res) => {
