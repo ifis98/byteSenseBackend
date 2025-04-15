@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const user = require("./routes/user"); //new addition
@@ -23,6 +24,8 @@ const { spawn } = require('child_process');
 const { type } = require("os");
 const utils = require('./deleteOldData');
 const generateReportUtil = require('./generateReport');
+
+
 //const cron = require('node-cron');
 //const { compareSync } = require("bcryptjs");
 

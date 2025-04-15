@@ -34,6 +34,56 @@ const { concatLimit } = require("async");
 const report = require("../model/report");
 //const ws = fs.createWriteStream("DownloadData.csv");
 
+const Stripe = require("stripe");
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY); // set this in .env
+
+
+router.post("/createCheckoutSession", async (req, res) => {
+  try {
+    const {
+      caseName,
+      arch,
+      type,
+      maxUndercut,
+      passiveSpacer,
+      instructions,
+      upperScanName,
+      lowerScanName,
+    } = req.body;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `Nightguard - ${caseName || "Custom Order"}`,
+              description: `Type: ${type}, Arch: ${arch}, Spacer: ${passiveSpacer}mm, Undercut: ${maxUndercut}mm`,
+              metadata: {
+                instructions,
+                upperScanName,
+                lowerScanName,
+              },
+            },
+            unit_amount: 19900, // $199.00 in cents
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: `${req.headers.origin}/order-success`,
+      cancel_url: `${req.headers.origin}/order`,
+    });
+
+    // ✅ Return the sessionId for Stripe.js to redirect
+    res.status(200).json({ sessionId: session.id });
+  } catch (err) {
+    console.error("Stripe error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 
 router.get("/patientRequest", auth, async (req, res) => {
