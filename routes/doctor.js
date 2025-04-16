@@ -30,8 +30,11 @@ const os = require("os");
 
 //const fastcsv = require("fast-csv");
 const fs = require("fs").promises;
+const fss = require("fs");
+const FormData = require('form-data');
 const { concatLimit } = require("async");
 const report = require("../model/report");
+const axios = require('axios');
 //const ws = fs.createWriteStream("DownloadData.csv");
 
 const Stripe = require("stripe");
@@ -68,11 +71,6 @@ router.post("/createCheckoutSession", upload.fields([
           product_data: {
             name: `Nightguard - ${caseName || "Custom Order"}`,
             description: `Arch: ${arch}, Type: ${type}`,
-            metadata: {
-              maxUndercut, passiveSpacer, instructions,
-              upperScanFile: upperScanFile.originalname,
-              lowerScanFile: lowerScanFile.originalname,
-            }
           },
         },
         quantity: 1,
@@ -82,10 +80,58 @@ router.post("/createCheckoutSession", upload.fields([
       cancel_url: `${req.headers.origin}/order`,
     });
 
-    res.status(200).json({ sessionId: session.id });
+    // Simulate unique order number
+    const orderNumber = session.id.slice(-6).toUpperCase();
+
+    // Create ClickUp task
+    const taskPayload = {
+      name: `Nightguard Order - ${caseName || "Untitled"}`,
+      description: `Order from web form`,
+      custom_fields: [
+        { id: 'a94b1a8c-efd2-42b0-a74b-90527e46d516', value: orderNumber }, // Order Number
+        { id: 'b21b9a81-4a00-4044-96fb-74688c72c125', value: arch },
+        { id: 'a43353d8-c4dd-428f-9938-f79f113aad40', value: type },
+        { id: '5ce707a1-5770-4bab-9d30-62b9c5f6f985', value: maxUndercut },
+        { id: '6dd7ca3f-1725-4335-985e-055c042d3ada', value: passiveSpacer },
+        { id: '8a8fc580-187f-4932-8a8d-f861a302ae38', value: instructions },
+        { id: 'ea8c2e22-22b6-4df4-96cf-080548e48924', value: '10669e14-4b1c-4211-8f47-68d27fc93262' } // Posted: No
+      ],
+    };
+
+    const taskRes = await axios.post(
+      'https://api.clickup.com/api/v2/list/901110333024/task',
+      taskPayload,
+      { headers: { Authorization: process.env.CLICKUP_TOKEN } }
+    );
+
+    const taskId = taskRes.data.id;
+
+    // Attach renamed STL files
+    const uploadAttachment = async (file, label) => {
+      const renamedFilename = `${label}_${orderNumber}.stl`;
+
+      const form = new FormData();
+      form.append('attachment', fss.createReadStream(file.path), renamedFilename);
+
+      await axios.post(
+        `https://api.clickup.com/api/v2/task/${taskId}/attachment`,
+        form,
+        {
+          headers: {
+            Authorization: process.env.CLICKUP_TOKEN,
+            ...form.getHeaders(),
+          },
+        }
+      );
+    };
+
+    await uploadAttachment(upperScanFile, 'upper');
+    await uploadAttachment(lowerScanFile, 'lower');
+
+    return res.status(200).json({ sessionId: session.id });
   } catch (err) {
-    console.error("Stripe error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Checkout or ClickUp error:", err.message);
+    return res.status(500).json({ error: "Server error. Try again later." });
   }
 });
 
