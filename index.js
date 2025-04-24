@@ -24,6 +24,9 @@ const { spawn } = require('child_process');
 const { type } = require("os");
 const utils = require('./deleteOldData');
 const generateReportUtil = require('./generateReport');
+const fs = require('fs');
+const https = require('https');
+
 
 
 //const cron = require('node-cron');
@@ -85,8 +88,15 @@ app.use("/user", user);
 app.use(doctor);
 app.use(patient);
 
-var server = app.listen(PORT, (req, res) => {
-  console.log(`Server Started at PORT ${PORT}`);
+
+const sslOptions = {
+  key: fs.readFileSync('/home/ec2-user/ssl/private.key'),
+  cert: fs.readFileSync('/home/ec2-user/ssl/certificate.crt'),
+  ca: fs.readFileSync('/home/ec2-user/ssl/ca_bundle.crt')
+};
+
+const server = https.createServer(sslOptions, app).listen(443, () => {
+  console.log('HTTPS server running at https://api.bytesense.ai');
 });
 
 var autogenerate = async () => {

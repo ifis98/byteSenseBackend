@@ -49,9 +49,13 @@ router.post("/createCheckoutSession", upload.fields([
 ]), async (req, res) => {
   try {
     const {
-      caseName, arch, type,
-      maxUndercut, passiveSpacer,
+      caseName,
+      arch,
+      type,
+      maxUndercut,
+      passiveSpacer,
       instructions,
+      clientName // <-- sent from frontend
     } = req.body;
 
     const upperScanFile = req.files?.upperScan?.[0];
@@ -61,7 +65,7 @@ router.post("/createCheckoutSession", upload.fields([
       return res.status(400).json({ error: "Both STL files are required." });
     }
 
-    const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+    // Create Stripe Checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{
@@ -80,28 +84,33 @@ router.post("/createCheckoutSession", upload.fields([
       cancel_url: `${req.headers.origin}/order`,
     });
 
-    // Simulate unique order number
+    // Simulate order number
     const orderNumber = session.id.slice(-6).toUpperCase();
 
     // Create ClickUp task
     const taskPayload = {
       name: `Nightguard Order - ${caseName || "Untitled"}`,
-      description: `Order from web form`,
+      description: "Order submitted through the web form",
       custom_fields: [
+        { id: '40dfb534-4b64-41fa-afc9-43722b3a0fbe', value: caseName }, // Case Name
+        { id: '27ccf01f-e3b4-4cf5-a286-87e328135884', value: clientName }, // Client
         { id: 'a94b1a8c-efd2-42b0-a74b-90527e46d516', value: orderNumber }, // Order Number
         { id: 'b21b9a81-4a00-4044-96fb-74688c72c125', value: arch },
         { id: 'a43353d8-c4dd-428f-9938-f79f113aad40', value: type },
         { id: '5ce707a1-5770-4bab-9d30-62b9c5f6f985', value: maxUndercut },
         { id: '6dd7ca3f-1725-4335-985e-055c042d3ada', value: passiveSpacer },
         { id: '8a8fc580-187f-4932-8a8d-f861a302ae38', value: instructions },
-        { id: 'ea8c2e22-22b6-4df4-96cf-080548e48924', value: '10669e14-4b1c-4211-8f47-68d27fc93262' } // Posted: No
       ],
     };
 
     const taskRes = await axios.post(
       'https://api.clickup.com/api/v2/list/901110333024/task',
       taskPayload,
-      { headers: { Authorization: process.env.CLICKUP_TOKEN } }
+      {
+        headers: {
+          Authorization: process.env.CLICKUP_TOKEN,
+        },
+      }
     );
 
     const taskId = taskRes.data.id;
