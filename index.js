@@ -95,7 +95,7 @@ const sslOptions = {
   ca: fs.readFileSync('/home/ec2-user/ssl/ca_bundle.crt')
 };
 
-const server = https.createServer(sslOptions, app).listen(443, () => {
+const server = https.createServer(sslOptions, app).listen(4000, () => {
   console.log('HTTPS server running at https://api.bytesense.ai');
 });
 
