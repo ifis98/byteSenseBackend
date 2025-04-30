@@ -103,6 +103,7 @@ router.post('/createPreorderSession', async (req, res) => {
         },
         quantity,
       }],
+      client_reference_id: clientName || 'Anonymous',
       mode: 'payment',
       success_url: `${req.headers.origin}/preorder-success`,
       cancel_url: `${req.headers.origin}/`,
