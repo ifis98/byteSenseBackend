@@ -71,7 +71,7 @@ router.post("/signup", validator.validateMeChecks, async (req, res) => {
       bio: null,
       address: {
         street: req.body.streetAddress,
-        unitNo: null,
+        unitNo: req.body.unitNo || null,
         city: req.body.city,
         state: req.body.state,
         zip: req.body.zipCode,
