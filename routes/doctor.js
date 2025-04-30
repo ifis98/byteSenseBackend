@@ -44,6 +44,41 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
 
+
+router.post(
+  '/preorderstripe',
+  bodyParser.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+
+      const email = session.customer_details?.email || 'unknown';
+      const clientName = session.client_reference_id || 'Unknown';
+      const quantity = session.amount_total / 14900;
+
+      console.log(`✅ Preorder successful from ${clientName} (${email}) for ${quantity} unit(s).`);
+
+      // TODO: Send confirmation email, save to DB, etc.
+    }
+
+    res.json({ received: true });
+  }
+);
+
 router.post('/createPreorderSession', async (req, res) => {
   try {
     const { quantity, clientName } = req.body;
