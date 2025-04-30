@@ -58,7 +58,7 @@ router.post('/createPreorderSession', async (req, res) => {
       line_items: [{
         price_data: {
           currency: 'usd',
-          unit_amount: 29900, // $299 per preorder unit
+          unit_amount: 14900, // 149 per preorder unit
           product_data: {
             name: `byteSense Preorder`,
             description: `Preorder placed by ${clientName || "Unknown Doctor"}`,
