@@ -68,7 +68,7 @@ router.post('/createPreorderSession', async (req, res) => {
       }],
       mode: 'payment',
       success_url: `${req.headers.origin}/preorder-success`,
-      cancel_url: `${req.headers.origin}/preorder`,
+      cancel_url: `${req.headers.origin}/`,
     });
 
     return res.status(200).json({ sessionId: session.id });
