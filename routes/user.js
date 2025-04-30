@@ -46,6 +46,10 @@ router.post("/signup", validator.validateMeChecks, async (req, res) => {
       password: req.body.password,
       userName: req.body.userName,
       isDoctor: req.body.isDoctor,
+      streetAddress: req.body.streetAddress,
+      city: req.body.city,
+      state: req.body.state,
+      zipCode: req.body.zipCode,
     });
     await user.save();
 
@@ -66,11 +70,11 @@ router.post("/signup", validator.validateMeChecks, async (req, res) => {
       picture: hasPicture,
       bio: null,
       address: {
-        street: null,
+        street: req.body.streetAddress,
         unitNo: null,
-        city: null,
-        state: null,
-        zip: null,
+        city: req.body.city,
+        state: req.body.state,
+        zip: req.body.zipCode,
         country: "US",
       },
       dob: null,

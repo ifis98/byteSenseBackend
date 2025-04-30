@@ -27,6 +27,7 @@ const { findOne } = require("../model/user");
 const _ = require('lodash');
 const os = require("os");
 const bodyParser = require('body-parser');
+const nodemailer = require('nodemailer');
 
 
 
@@ -74,7 +75,35 @@ router.post(
 
       console.log(`✅ Preorder successful from ${clientName} (${email}) for ${quantity} unit(s).`);
 
-      // TODO: Send confirmation email, save to DB, etc.
+      const subject = `Your Order Confirmation`;
+      const htmlBody = `
+          <p>Hi there,</p>
+          <p>Thanks for your order! Here are the details:</p>
+          <ul>
+            <li><strong>Quantity:</strong> ${quantity}</li>
+          </ul>
+          <p>We’ll let you know once your order ships.</p>
+          <p>Cheers</p>
+        `;
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        port: 465,
+        secure: true,
+        auth: {
+          user: 'bytesense.noreply@gmail.com',
+          pass: 'ebnybuudugoardih'
+        }
+      });
+      let mailOptions = {
+        to: 'final632@chefalicious.com',
+        from: 'bytesense.noreply@gmail.com',
+        subject,
+        html: htmlBody
+      };
+      transporter.sendMail(mailOptions, function (err) {
+        res.json({ message: "Order Confirmation sent successfully"});
+        done(err, 'done');
+      });
     }
 
     res.json({ received: true });
