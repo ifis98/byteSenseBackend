@@ -43,6 +43,41 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY); // set this in .env
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
+
+router.post('/createPreorderSession', async (req, res) => {
+  try {
+    const { quantity, clientName } = req.body;
+
+    if (!quantity || isNaN(quantity) || quantity <= 0) {
+      return res.status(400).json({ error: "Invalid preorder quantity." });
+    }
+
+    // Create Stripe Checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          unit_amount: 29900, // $299 per preorder unit
+          product_data: {
+            name: `byteSense Preorder`,
+            description: `Preorder placed by ${clientName || "Unknown Doctor"}`,
+          },
+        },
+        quantity,
+      }],
+      mode: 'payment',
+      success_url: `${req.headers.origin}/preorder-success`,
+      cancel_url: `${req.headers.origin}/preorder`,
+    });
+
+    return res.status(200).json({ sessionId: session.id });
+  } catch (err) {
+    console.error("Preorder Stripe session error:", err.message);
+    return res.status(500).json({ error: "Could not initiate Stripe session." });
+  }
+});
+
 router.post("/createCheckoutSession", upload.fields([
   { name: 'upperScan', maxCount: 1 },
   { name: 'lowerScan', maxCount: 1 },
