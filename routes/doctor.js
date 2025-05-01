@@ -95,7 +95,7 @@ router.post(
         }
       });
       let mailOptions = {
-        to: 'final632@chefalicious.com',
+        to: email,
         from: 'bytesense.noreply@gmail.com',
         subject,
         html: htmlBody
