@@ -164,7 +164,7 @@ router.post("/loginMobile", async (req, res) => {
         return res.status(400).json({ message: "Invalid credentials" });
       }
       const token = await user.generateAuthToken();
-      res.status(200).send({ token });
+      res.status(200).send({ token, user: { _id: user._id }});
     }
     else {
       return res.status(405).json({ message: "Please use the Web aplication to login" });
