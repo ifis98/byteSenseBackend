@@ -70,5 +70,10 @@ UserSchema.pre('save', async function(next){
   next()
 })
 
+UserSchema.methods.checkPassword = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
+
+
 // export model user with UserSchema
 module.exports = mongoose.model("user", UserSchema);
