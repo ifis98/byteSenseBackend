@@ -20,14 +20,14 @@ const disconnection = require("./model/disconnection");
 const appopen = require("./model/appopen");
 const appclose = require("./model/appclose");
 const newGrindRatio = require("./model/newGrindRatio");
-const BiometricData =require(biometricData)
+const BiometricData = require('./model/biometricData');
 const { spawn } = require('child_process');
 const { type } = require("os");
 const utils = require('./deleteOldData');
 const generateReportUtil = require('./generateReport');
 const fs = require('fs');
 const https = require('https');
-const BiometricData = require('./model/biometricData');
+
 
 
 
