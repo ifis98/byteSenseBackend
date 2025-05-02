@@ -27,7 +27,7 @@ const utils = require('./deleteOldData');
 const generateReportUtil = require('./generateReport');
 const fs = require('fs');
 const https = require('https');
-const biometricData = require('./model/biometricData');
+const BiometricData = require('./model/biometricData');
 
 
 
