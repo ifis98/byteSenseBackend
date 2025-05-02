@@ -1,10 +1,9 @@
 const mongoose = require('mongoose');
 const uniqueValidator = require('mongoose-unique-validator');
-const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-
-const UserSchema = mongoose.Schema({
+const UserSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
@@ -22,69 +21,72 @@ const UserSchema = mongoose.Schema({
   },
   isDoctor: {
     type: Boolean,
-    required: true,
+    required: true
   },
   resetPasswordToken: {
     type: String
   },
   resetPasswordExpires: {
-      type: Date
+    type: Date
   },
   streetAddress: {
-    type: String,
-    required: true,
+    type: String, // Optional now
+    required: false
   },
   city: {
     type: String,
-    required: true,
+    required: false
   },
   state: {
     type: String,
-    required: true,
+    required: false
   },
-  zipCode:{
+  zipCode: {
     type: String,
-    required: true,
+    required: false
   },
-  tokens:[{
+  tokens: [{
     token: {
-        type: String,
-        required: true
+      type: String,
+      required: true
     }
-}]
+  }]
 });
 
 UserSchema.plugin(uniqueValidator);
 
-UserSchema.virtual('patientList',{
+// Virtual field for patient's doctor list
+UserSchema.virtual('patientList', {
   ref: 'PersonalPatientList',
   localField: '_id',
   foreignField: 'doctor'
-})
+});
 
-UserSchema.methods.generateAuthToken = async function (){
-  const user = this
-  const token = jwt.sign({_id: user._id.toString()},'randomstring')
+// Generates JWT and saves it to tokens array
+UserSchema.methods.generateAuthToken = async function () {
+  const user = this;
+  const token = jwt.sign({ _id: user._id.toString() }, 'randomstring');
 
-  user.tokens = user.tokens.concat({token})
-  await user.save()
+  user.tokens = user.tokens || []; // initialize if undefined
+  user.tokens = user.tokens.concat({ token });
+  await user.save();
 
-  return token
-}
+  return token;
+};
 
-UserSchema.methods.findByCredentials = async function (user,password){
-  const isMatch = await bcrypt.compare(password,user.password)
-  return isMatch
-}
+// Static method to validate user credentials
+UserSchema.statics.findByCredentials = async function (user, password) {
+  return await bcrypt.compare(password, user.password);
+};
 
-UserSchema.pre('save', async function(next){
-  const user = this
-  if (user.isModified('password')){
-      const salt = await bcrypt.genSalt(10)
-      user.password = await bcrypt.hash(user.password,salt)
+// Hash password before saving
+UserSchema.pre('save', async function (next) {
+  const user = this;
+  if (user.isModified('password')) {
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(user.password, salt);
   }
-  next()
-})
+  next();
+});
 
-// export model user with UserSchema
-module.exports = mongoose.model("user", UserSchema);
+module.exports = mongoose.model("User", UserSchema);
