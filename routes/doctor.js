@@ -28,6 +28,7 @@ const _ = require('lodash');
 const os = require("os");
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
+const BiometricData = require("../model/biometricData");
 
 
 
@@ -645,54 +646,55 @@ router.post("/newGrindRatio", auth, async (req, res) => {
 
 router.post("/patientData", auth, async (req, res) => {
   try {
-    _user = req.body.userID;
+    const _user = req.body.userID;
+
     const patientData = await PatientData.findOne({ user: _user });
     const patient = await UserProfile.findOne({ user: _user });
-    const name = patient.fName + " " + patient.lName;
-    const picture = "./Uploads/profilePictures/" + patient.picture;
-    //Hard code compliance, pressure level, tonic, brux night, avg freq, summary
 
-    // var obj1 = {
-    //   compliance: "22/31",
-    //   pressure: "High",
-    //   type: "tonic",
-    //   brux_Night: "3.5/weeks",
-    //   avg_Freq: "4.6/hr",
-    // };
-    result = {};
-    var obj = patientData.appData;
-    var numerator = patientData.objList.length;
-    var startDate = patient.userCreationDate;
-    var endDate = new Date();
-    var timeDiff = endDate.getTime() - startDate.getTime();
-    var denom = timeDiff / (1000 * 3600 * 24);
-    for (i = 0; i < obj.length; i++) {
-      var key = obj[i].Date;
-      var myDate = new Date(key);
-      var key = myDate.toISOString().substr(0, 10);
+    if (!patientData || !patient) {
+      return res.status(404).json({ message: "Patient or patient data not found." });
+    }
+
+    const name = `${patient.fName || ""} ${patient.lName || ""}`.trim();
+    const picture = "./Uploads/profilePictures/" + (patient.picture || "default.jpg");
+
+    const result = {};
+    const appDataArray = patientData.appData || [];
+
+    for (let entry of appDataArray) {
+      const key = new Date(entry.Date).toISOString().substr(0, 10);
       result[key] = {
-        totalEpisode: obj[i].totalEpisode,
-        totalDuration: obj[i].totalDuration,
+        totalEpisode: parseFloat(entry.totalEpisode?.toString() || 0),
+        totalDuration: parseFloat(entry.totalDuration?.toString() || 0),
+        averageHR: parseFloat(entry.averageHR?.toString() || 0),
+        averageHRV: parseFloat(entry.averageHRV?.toString() || 0),
       };
     }
-    if(parseInt(denom) === 0){
-      denom = 1;
-    }
-    //var response = {...result, ...obj1}
-    var finalresponse = {};
-    finalresponse = {
-      name: name,
+
+    // Compliance Calculation — Now based on BiometricData
+    const compDays = await BiometricData.countDocuments({ user: _user });
+
+    const startDate = patient.userCreationDate || new Date();
+    const endDate = new Date();
+    const timeDiff = endDate.getTime() - new Date(startDate).getTime();
+    let totalDays = Math.floor(timeDiff / (1000 * 3600 * 24));
+    if (totalDays === 0) totalDays = 1;
+
+    const finalResponse = {
+      name,
+      picture,
       data: result,
       compliance: {
-        CompDays: numerator,
-        totalDays: parseInt(denom),
+        CompDays: compDays,
+        totalDays: totalDays,
       },
-      picture: picture,
     };
-    res.status(200).send(finalresponse);
+
+    res.status(200).send(finalResponse);
+
   } catch (e) {
-    //console.log(e)
-    res.status(404).send(e);
+    console.error("Error fetching patient data:", e);
+    res.status(500).send({ message: "Server error", error: e });
   }
 });
 

@@ -20,12 +20,16 @@ const disconnection = require("./model/disconnection");
 const appopen = require("./model/appopen");
 const appclose = require("./model/appclose");
 const newGrindRatio = require("./model/newGrindRatio");
+const BiometricData =require(biometricData)
 const { spawn } = require('child_process');
 const { type } = require("os");
 const utils = require('./deleteOldData');
 const generateReportUtil = require('./generateReport');
 const fs = require('fs');
 const https = require('https');
+const biometricData = require('./model/biometricData');
+
+
 
 
 
@@ -267,7 +271,100 @@ io.on("connection", function (socket) {
   //   );
   // });
 /***************************************************************************************/
-  socket.on("grindRatio", async (data) => {
+socket.on("biometricData", async (data) => {
+  if (!data.data || data.data.length === 0) return;
+
+  // Use the first timestamp to determine the day boundary
+  const ts = new Date(data.data[0].ts);
+  const gmtHour = ts.getUTCHours();
+
+  // "Day" starts at 11 PM UTC the previous calendar day if before 11 PM
+  const dayStart = new Date(ts);
+  if (gmtHour < 23) {
+    dayStart.setUTCDate(dayStart.getUTCDate() - 1);
+  }
+  dayStart.setUTCHours(23, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1); // next 11 PM
+
+  const hour = new Date(data.data[0].ts).getUTCHours();
+
+  const today = new Date(dayStart); // Used as the canonical 'Date' for the document
+
+  // 1. Ensure BiometricData doc exists
+  let existing = await BiometricData.findOne({ user: data.user, date: today });
+  if (!existing) {
+    existing = new BiometricData({
+      user: data.user,
+      date: today,
+      data: {
+        hours: Array.from({ length: 24 }, (_, i) => ({ _id: i, hourData: [] }))
+      }
+    });
+    await existing.save();
+  }
+
+  // 2. Add the new datapoints to the correct hour
+  await BiometricData.findOneAndUpdate(
+    { user: data.user, date: today, "data.hours._id": hour },
+    {
+      $push: {
+        "data.hours.$.hourData": { $each: data.data }
+      }
+    }
+  );
+
+  // 3. Recalculate average HR and HRV for the whole day
+  const dayBiometric = await BiometricData.findOne({ user: data.user, date: today });
+
+  let allPoints = [];
+  for (const hourEntry of dayBiometric.data.hours) {
+    allPoints = allPoints.concat(hourEntry.hourData);
+  }
+
+  const validHR = allPoints.map(d => parseFloat(d.HR)).filter(x => !isNaN(x));
+  const validHRV = allPoints.map(d => parseFloat(d.HRV)).filter(x => !isNaN(x));
+
+  const avgHR = validHR.length ? (validHR.reduce((a, b) => a + b, 0) / validHR.length) : 0;
+  const avgHRV = validHRV.length ? (validHRV.reduce((a, b) => a + b, 0) / validHRV.length) : 0;
+
+  // 4. Update or Insert into patientData.appData
+  await PatientData.findOneAndUpdate(
+    { user: mongoose.Types.ObjectId(data.user), "appData.Date": today },
+    {
+      $set: {
+        "appData.$.averageHR": avgHR,
+        "appData.$.averageHRV": avgHRV
+      }
+    },
+    { upsert: false, new: true }
+  ).then(async (res) => {
+    // If not found and updated, insert a new entry
+    if (!res) {
+      await PatientData.findOneAndUpdate(
+        { user: mongoose.Types.ObjectId(data.user) },
+        {
+          $push: {
+            appData: {
+              Date: today,
+              totalEpisode: 0,
+              totalDuration: 0,
+              averageHR: avgHR,
+              averageHRV: avgHRV
+            }
+          }
+        }
+      );
+    }
+  });
+
+  console.log(`Updated biometric and appData for day starting at: ${today.toISOString()}`);
+  socket.emit("biometric data updated");
+});
+
+
+
+socket.on("grindRatio", async (data) => {
     
     if(data.data.length == 0){
       return
