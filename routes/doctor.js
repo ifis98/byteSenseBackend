@@ -46,7 +46,41 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY); // set this in .env
 
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
+const { google } = require("googleapis");
 
+const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, EMAIL_ADDRESS } =process.env;
+
+const REDIRECT_URI = 'https://developers.google.com/oauthplayground';
+
+const oAuth2Client = new google.auth.OAuth2(
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, REDIRECT_URI
+);
+
+oAuth2Client.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN });
+
+async function sendEmail(to, subject, htmlBody) {
+  const accessToken = await oAuth2Client.getAccessToken();
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: EMAIL_ADDRESS,
+      clientId: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      refreshToken: GOOGLE_REFRESH_TOKEN,
+      accessToken: accessToken.token
+    }
+  });
+
+  const mailOptions = {
+    from: EMAIL_ADDRESS,
+    to,
+    subject,
+    html: htmlBody
+  };
+  const result = await transporter.sendMail(mailOptions);
+  return result;
+}
 
 
 router.post(
@@ -86,6 +120,9 @@ router.post(
           <p>We’ll let you know once your order ships.</p>
           <p>Cheers</p>
         `;
+
+      // await sendEmail(email, subject, htmlBody)
+
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         port: 465,
