@@ -5,10 +5,6 @@ module.exports = {
     check("fName").exists().withMessage("This field is required"),
     check("lName").exists().withMessage("This field is required"),
     check("userName").exists().withMessage("This field is required"),
-    check("streetAddress").exists().withMessage("This field is required"),
-    check("city").exists().withMessage("This field is required"),
-    check("state").exists().withMessage("This field is required"),
-    check("zipCode").exists().withMessage("This field is required"),
     check("email").isEmail().withMessage("Invalid email"),
     check("password")
       .isLength({ min: 4 })

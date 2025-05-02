@@ -46,10 +46,6 @@ router.post("/signup", validator.validateMeChecks, async (req, res) => {
       password: req.body.password,
       userName: req.body.userName,
       isDoctor: req.body.isDoctor,
-      streetAddress: req.body.streetAddress,
-      city: req.body.city,
-      state: req.body.state,
-      zipCode: req.body.zipCode,
     });
     await user.save();
 
