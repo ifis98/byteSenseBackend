@@ -159,7 +159,7 @@ router.post("/loginMobile", async (req, res) => {
     if (!user.isDoctor) {
       if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-      const isMatch = await User.findByCredentials(user, password);
+      const isMatch = await user.findByCredentials(user, password);
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
