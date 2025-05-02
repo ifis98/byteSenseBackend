@@ -152,30 +152,38 @@ router.post("/loginWeb", async (req, res) => {
     });
   }
 });
+
 router.post("/loginMobile", async (req, res) => {
   const { userName, password } = req.body;
   try {
-    let user = await User.findOne({ userName });
-    if (!user.isDoctor) {
-      if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    const user = await User.findOne({ userName });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
-      const isMatch = await user.findByCredentials(user, password);
-      if (!isMatch) {
-        return res.status(400).json({ message: "Invalid credentials" });
+    if (user.isDoctor) {
+      return res.status(405).json({ message: "Please use the Web application to login" });
+    }
+
+    const isMatch = await user.checkPassword(password); // updated method name
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = await user.generateAuthToken();
+
+    res.status(200).json({
+      token,
+      user: {
+        _id: user._id
       }
-      const token = await user.generateAuthToken();
-      res.status(200).send({ token, user: { _id: user._id }});
-    }
-    else {
-      return res.status(405).json({ message: "Please use the Web aplication to login" });
-    }
-  } catch (e) {
-    console.log(e)
-    res.status(500).json({
-      message: "Server Error",
     });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Server Error" });
   }
 });
+
 
 router.post("/logout", auth, async (req, res) => {
   try {
