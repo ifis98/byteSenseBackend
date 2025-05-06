@@ -345,7 +345,7 @@ socket.on("biometricData", async (data) => {
         { user: mongoose.Types.ObjectId(data.user) },
         {
           $push: {
-            appData: {
+            biometricList: {
               Date: today,
               totalEpisode: 0,
               totalDuration: 0,
