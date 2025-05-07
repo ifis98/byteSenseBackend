@@ -69,14 +69,19 @@ app.use((req, res, next) => {
 
 // PORT
 const PORT = process.env.PORT || 4000;
-app.use(bodyParser.json({
-  limit: '50mb',
-  verify: (req, _res, buf) => {
-    if (req.originalUrl === '/preorderstripe' && req.method === 'POST') {
-      req.rawBody = buf;        // keep the pristine payload
-    }
-  }
-}));
+app.use('/preorderstripe', (req, res, next) => {
+  console.log('[DEBUG] Entering /preorderstripe before bodyParser.raw');
+  next();
+});
+
+app.use('/preorderstripe', bodyParser.raw({ type: 'application/json' }));
+
+app.use('/preorderstripe', (req, res, next) => {
+  console.log('[DEBUG] After bodyParser.raw: typeof body =', typeof req.body, 'isBuffer =', Buffer.isBuffer(req.body));
+  next();
+});
+// Middleware
+app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: false }));
 
 app.use(
