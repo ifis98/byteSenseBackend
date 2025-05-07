@@ -88,8 +88,8 @@ router.post(
   bodyParser.raw({ type: 'application/json' }),
   async (req, res) => {
     const sig = req.headers['stripe-signature'];
-
     let event;
+
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
@@ -108,7 +108,7 @@ router.post(
       const clientName = session.client_reference_id || 'Unknown';
       const quantity = session.amount_total / 14900;
 
-      console.log(`✅ Preorder successful from ${clientName} (${email}) for ${quantity} unit(s).`);
+      console.log(`Preorder successful from ${clientName} (${email}) for ${quantity} unit(s).`);
 
       const subject = `Your Order Confirmation`;
       const htmlBody = `
@@ -121,8 +121,6 @@ router.post(
           <p>Cheers</p>
         `;
 
-      // await sendEmail(email, subject, htmlBody)
-
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         port: 465,
@@ -132,56 +130,24 @@ router.post(
           pass: process.env.GMAIL_APP_PASS
         }
       });
-      let mailOptions = {
-        to: email,
-        from: process.env.GMAIL_USER,
-        subject,
-        html: htmlBody
-      };
-      transporter.sendMail(mailOptions, function (err) {
-        res.json({ message: "Order Confirmation sent successfully"});
-        done(err, 'done');
-      });
+
+      try {
+        await transporter.sendMail({
+          to: email,
+          from: process.env.GMAIL_USER,
+          subject,
+          html: htmlBody
+        });
+        console.log("Confirmation email sent to:", email);
+      } catch (err) {
+        console.error("Failed to send confirmation email:", err);
+        return res.status(500).json({ error: 'Email send failed' });
+      }
     }
 
     res.json({ received: true });
   }
 );
-
-router.post('/createPreorderSession', async (req, res) => {
-  try {
-    const { quantity, clientName } = req.body;
-
-    if (!quantity || isNaN(quantity) || quantity <= 0) {
-      return res.status(400).json({ error: "Invalid preorder quantity." });
-    }
-
-    // Create Stripe Checkout session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          unit_amount: 14900, // 149 per preorder unit
-          product_data: {
-            name: `byteSense Preorder`,
-            description: `Preorder placed by ${clientName || "Unknown Doctor"}`,
-          },
-        },
-        quantity,
-      }],
-      client_reference_id: clientName || 'Anonymous',
-      mode: 'payment',
-      success_url: `${req.headers.origin}/preorder-success`,
-      cancel_url: `${req.headers.origin}/`,
-    });
-
-    return res.status(200).json({ sessionId: session.id });
-  } catch (err) {
-    console.error("Preorder Stripe session error:", err.message);
-    return res.status(500).json({ error: "Could not initiate Stripe session." });
-  }
-});
 
 router.post("/createCheckoutSession", upload.fields([
   { name: 'upperScan', maxCount: 1 },
