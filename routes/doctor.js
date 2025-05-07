@@ -85,6 +85,7 @@ async function sendEmail(to, subject, htmlBody) {
 
 router.post(
   '/preorderstripe',
+  bodyParser.raw({ type: 'application/json' }),
   async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
