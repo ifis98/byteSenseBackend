@@ -128,13 +128,12 @@ router.post(
         port: 465,
         secure: true,
         auth: {
-          user: 'bytesense.noreply@gmail.com',
-          pass: 'ebnybuudugoardih'
-        }
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASS,
       });
       let mailOptions = {
         to: email,
-        from: 'bytesense.noreply@gmail.com',
+        from: process.env.GMAIL_USER,
         subject,
         html: htmlBody
       };
