@@ -86,9 +86,8 @@ async function sendEmail(to, subject, htmlBody) {
 router.post(
   '/preorderstripe',
   async (req, res) => {
-    console.log('typeof req.body:', typeof req.body);
-    console.log('Buffer.isBuffer(req.body):', Buffer.isBuffer(req.body));
-    console.log('Raw req.body length:', req.body?.length);
+    console.log('[CHECK] Buffer.isBuffer(req.body):', Buffer.isBuffer(req.body));
+    console.log('[CHECK] Stripe sig header:', req.headers['stripe-signature']);
     const sig = req.headers['stripe-signature'];
     let event;
 
