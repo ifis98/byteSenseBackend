@@ -86,11 +86,13 @@ async function sendEmail(to, subject, htmlBody) {
 router.post(
   '/preorderstripe',
   async (req, res) => {
+    console.log('typeof req.body:', typeof req.body);
+    console.log('Buffer.isBuffer(req.body):', Buffer.isBuffer(req.body));
+    console.log('Raw req.body length:', req.body?.length);
     const sig = req.headers['stripe-signature'];
     let event;
 
     try {
-      console.log("received req: "+req.body)
       event = stripe.webhooks.constructEvent(
         req.body,
         sig,
