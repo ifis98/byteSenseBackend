@@ -93,7 +93,7 @@ router.post(
     try {
       console.log("received req: "+req.body)
       event = stripe.webhooks.constructEvent(
-        req.rawBody,
+        req.body,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET
       );
