@@ -134,6 +134,22 @@ router.post("/addPatientData", auth, async (req, res) => {
   );
 });
 
+// Retrieve the authenticated patient's data without conflicting with
+// the doctor's `/patientData` route
+router.get("/myPatientData", auth, async (req, res) => {
+  try {
+    const data = await PatientData.findOne({ user: req.user._id });
+
+    if (!data) {
+      return res.status(404).send({ message: "Patient data not found" });
+    }
+
+    res.status(200).send(data);
+  } catch (e) {
+    res.status(400).send(e);
+  }
+});
+
 router.post("/training", auth, async (req, res) => {
 
   var toDate = new Date(req.body.date);
