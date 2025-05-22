@@ -440,7 +440,7 @@ socket.on("biometricData", async (data) => {
     }
   }
   let recoveryTrendScore = clamp(50 + (slope*1000),0,100);
-  const byteScore = (recoveryScore + (1-stressLoadScore) + recoveryTrendScore)/3;
+  const byteScore = (recoveryScore + stressLoadScore + recoveryTrendScore)/3;
 
 
   // -------------------------------------------------------
