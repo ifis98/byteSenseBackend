@@ -13,6 +13,8 @@ const painSurvey = require("../model/painSurvey");
 const axios = require('axios');
 const nodemailer = require("nodemailer");
 const { resolve } = require("path");
+const fs = require('fs');
+const path = require('path');
 
 
 router.get("/viewDoctor", auth, async (req, res) => {
@@ -275,6 +277,31 @@ router.post("/postPainSurvey", auth, async (req, response) => {
   }
 })
 
+// Returns the latest firmware zip to the client
+router.get('/currentfirmware', (req, res) => {
+  const firmwareDir = path.join(process.cwd(), 'firmware');
+  fs.readdir(firmwareDir, (err, files) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Firmware not found');
+    }
+
+    const zip = files.find(f => f.toLowerCase().endsWith('.zip'));
+    if (!zip) {
+      return res.status(404).send('Firmware not found');
+    }
+
+    const filePath = path.join(firmwareDir, zip);
+    res.download(filePath, zip, downloadErr => {
+      if (downloadErr) {
+        console.error(downloadErr);
+        if (!res.headersSent) {
+          res.status(500).send('Error sending firmware');
+        }
+      }
+    });
+  });
+});
 
 
 module.exports = router;
