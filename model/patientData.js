@@ -31,7 +31,7 @@ const patientData = mongoose.Schema({
       prevWeekAvgTotalEpisode: { type: mongoose.Decimal128, default: null },
       prevWeekAvgTotalDuration: { type: mongoose.Decimal128, default: null },
       activities: [{
-        type: String,
+        type: { type: String },
         start: Date,
         end: Date,
         duration: Number
