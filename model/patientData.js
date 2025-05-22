@@ -18,7 +18,32 @@ const patientData = mongoose.Schema({
       totalEpisode: { type: mongoose.Decimal128, default: 0 },
       totalDuration: { type: mongoose.Decimal128, default: 0 },
       averageHR: { type: mongoose.Decimal128, default: 0 },
-      averageHRV: { type: mongoose.Decimal128, default: 0 }
+      averageHRV: { type: mongoose.Decimal128, default: 0 },
+      recoveryScore: { type: mongoose.Decimal128, default: null },
+      stressLoadScore: { type: mongoose.Decimal128, default: null },
+      recoveryTrendScore: { type: mongoose.Decimal128, default: null },
+      byteScore: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgByteScore: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgRecoveryScore: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgStressLoadScore: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgRecoveryTrendScore: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgHR: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgHRV: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgTotalEpisode: { type: mongoose.Decimal128, default: null },
+      prevWeekAvgTotalDuration: { type: mongoose.Decimal128, default: null },
+      activities: [{
+        type: String,
+        start: Date,
+        end: Date,
+        duration: Number
+      }],
+      substances: [{
+        name: String,
+        time: Date,
+        amount: Number,
+        units: String,
+        nutrition: [{ type: String, amount: Number, units: String }]
+      }]
     }
   ],
   energy: [

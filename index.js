@@ -345,11 +345,138 @@ socket.on("biometricData", async (data) => {
     allPoints = allPoints.concat(hourEntry.hourData);
   }
 
-  const validHR = allPoints.map(d => parseFloat(d.HR)).filter(x => !isNaN(x));
-  const validHRV = allPoints.map(d => parseFloat(d.HRV)).filter(x => !isNaN(x));
+  const validSamples = allPoints.filter(p => {
+    const hr = parseFloat(p.HR);
+    const hrv = parseFloat(p.HRV);
+    return !isNaN(hr) && !isNaN(hrv) && hr > 0 && hrv > 0;
+  });
+
+  const validHR = validSamples.map(d => parseFloat(d.HR));
+  const validHRV = validSamples.map(d => parseFloat(d.HRV));
 
   const avgHR = validHR.length ? (validHR.reduce((a, b) => a + b, 0) / validHR.length) : 0;
   const avgHRV = validHRV.length ? (validHRV.reduce((a, b) => a + b, 0) / validHRV.length) : 0;
+
+  // -------------------------------------------------------
+  // Sleep Activities and Score Calculations
+  // -------------------------------------------------------
+  const sortedAll = allPoints.slice().sort((a,b) => new Date(a.ts) - new Date(b.ts));
+  const sorted = validSamples.slice().sort((a,b) => new Date(a.ts) - new Date(b.ts));
+  let activities = [];
+  let totalSleepSec = 0;
+  let segStart = null;
+  let segSleepSec = 0;
+  for(let i=1;i<sortedAll.length;i++){
+    const prev = sortedAll[i-1];
+    const curr = sortedAll[i];
+    if(segStart === null) segStart = prev;
+    const gap = (new Date(curr.ts) - new Date(prev.ts))/1000;
+    if(gap <= 10){
+      segSleepSec += gap;
+    }else{
+      activities.push({ type: 'Sleep', start: new Date(segStart.ts), end: new Date(prev.ts), duration: segSleepSec/60 });
+      totalSleepSec += segSleepSec;
+      segStart = curr;
+      segSleepSec = 0;
+    }
+  }
+  if(sortedAll.length){
+    if(segStart === null) segStart = sortedAll[0];
+    activities.push({ type: 'Sleep', start: new Date(segStart.ts), end: new Date(sortedAll[sortedAll.length-1].ts), duration: segSleepSec/60 });
+    totalSleepSec += segSleepSec;
+  }
+  const totalSleepMinutes = totalSleepSec/60;
+
+  const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+  // Components
+  const maxHRV = validHRV.length ? Math.max(...validHRV) : 0;
+  const hrvMaxComp = clamp((maxHRV/90)*100,0,100);
+
+  const hrSorted = validHR.slice().sort((a,b)=>b-a);
+  const segCount = Math.max(1, Math.floor(hrSorted.length*0.1));
+  const meanTop = hrSorted.slice(0,segCount).reduce((a,b)=>a+b,0)/segCount;
+  const meanBot = hrSorted.slice(-segCount).reduce((a,b)=>a+b,0)/segCount;
+  const hrDropComp = clamp(((meanTop - meanBot)/25)*100,0,100);
+
+  // Restfulness component
+  let spikes = 0;
+  let window = [];
+  for(const samp of sorted){
+    const tsMs = new Date(samp.ts).getTime();
+    while(window.length && tsMs - new Date(window[0].ts).getTime() > 120000){
+      window.shift();
+    }
+    const winAvg = window.length ? window.reduce((a,b)=>a+parseFloat(b.HR || 0),0)/window.length : 0;
+    if(window.length && parseFloat(samp.HR) >= winAvg + 10){
+      spikes++;
+    }
+    window.push(samp);
+  }
+  const spikesPerHour = totalSleepMinutes ? (spikes / (totalSleepMinutes/60)) : 0;
+  const restfulnessComp = clamp(100 - ((spikesPerHour*10/6)*100),0,100);
+
+  // Stability component
+  const meanHRV = avgHRV;
+  const stdHRV = validHRV.length ? Math.sqrt(validHRV.reduce((s,x)=>s+Math.pow(x-meanHRV,2),0)/validHRV.length) : 0;
+  const stabilityComp = meanHRV ? clamp(100 - (((stdHRV/meanHRV)/0.3)*100),0,100) : 0;
+
+  let recoveryScore = clamp(0.35*hrvMaxComp + 0.25*hrDropComp + 0.25*restfulnessComp + 0.15*stabilityComp,0,100);
+
+  let stressLoadScore = clamp(100 - (( (avgHR/80)*0.4 + (avgHRV? (70/avgHRV)*0.4 : 0) + (hrDropComp/100)*0.2 )*100),0,100);
+
+  // Recovery Trend Score via linear regression
+  let slope = 0;
+  const trendPoints = sorted.map(p=>({x:(new Date(p.ts)-new Date(sorted[0].ts))/60000,y:parseFloat(p.HRV)})).filter(p=>!isNaN(p.y));
+  if(trendPoints.length>1){
+    const n = trendPoints.length;
+    const sumX = trendPoints.reduce((a,b)=>a+b.x,0);
+    const sumY = trendPoints.reduce((a,b)=>a+b.y,0);
+    const sumXY = trendPoints.reduce((a,b)=>a+b.x*b.y,0);
+    const sumXX = trendPoints.reduce((a,b)=>a+b.x*b.x,0);
+    const denom = n*sumXX - sumX*sumX;
+    if(denom!==0){
+      slope = (n*sumXY - sumX*sumY)/denom;
+    }
+  }
+  let recoveryTrendScore = clamp(50 + (slope*1000),0,100);
+
+  const byteScore = (recoveryScore + stressLoadScore + recoveryTrendScore)/3;
+
+  // -------------------------------------------------------
+  // Compute previous week averages (excluding current day)
+  // -------------------------------------------------------
+  const patientDoc = await PatientData.findOne({ user: mongoose.Types.ObjectId(data.user) }).lean();
+  let prevStart = new Date(today);
+  const dow = prevStart.getUTCDay();
+  prevStart.setUTCDate(prevStart.getUTCDate() - dow - 7);
+  prevStart.setUTCHours(23,0,0,0);
+  const prevEnd = new Date(prevStart);
+  prevEnd.setUTCDate(prevEnd.getUTCDate() + 6);
+
+  let prevWeekData = [];
+  if(patientDoc && patientDoc.appData){
+    prevWeekData = patientDoc.appData.filter(entry => {
+      const d = new Date(entry.Date);
+      return d >= prevStart && d <= prevEnd;
+    });
+  }
+
+  const avgField = (arr, field) => {
+    if(!arr.length) return null;
+    const vals = arr.map(e => parseFloat((e[field]||0).toString?e[field].toString():e[field])).filter(v=>!isNaN(v));
+    if(!vals.length) return null;
+    return vals.reduce((a,b)=>a+b,0)/vals.length;
+  };
+
+  const prevWeekAvgRecoveryScore = avgField(prevWeekData,'recoveryScore');
+  const prevWeekAvgStressLoadScore = avgField(prevWeekData,'stressLoadScore');
+  const prevWeekAvgRecoveryTrendScore = avgField(prevWeekData,'recoveryTrendScore');
+  const prevWeekAvgByteScore = avgField(prevWeekData,'byteScore');
+  const prevWeekAvgHR = avgField(prevWeekData,'averageHR');
+  const prevWeekAvgHRV = avgField(prevWeekData,'averageHRV');
+  const prevWeekAvgTotalEpisode = avgField(prevWeekData,'totalEpisode');
+  const prevWeekAvgTotalDuration = avgField(prevWeekData,'totalDuration');
 
   // 4. Store averages in BiometricData (for redundancy if needed)
   await BiometricData.updateOne(
@@ -368,7 +495,20 @@ socket.on("biometricData", async (data) => {
     {
       $set: {
         "appData.$.averageHR": avgHR,
-        "appData.$.averageHRV": avgHRV
+        "appData.$.averageHRV": avgHRV,
+        "appData.$.recoveryScore": recoveryScore,
+        "appData.$.stressLoadScore": stressLoadScore,
+        "appData.$.recoveryTrendScore": recoveryTrendScore,
+        "appData.$.byteScore": byteScore,
+        "appData.$.prevWeekAvgRecoveryScore": prevWeekAvgRecoveryScore,
+        "appData.$.prevWeekAvgStressLoadScore": prevWeekAvgStressLoadScore,
+        "appData.$.prevWeekAvgRecoveryTrendScore": prevWeekAvgRecoveryTrendScore,
+        "appData.$.prevWeekAvgByteScore": prevWeekAvgByteScore,
+        "appData.$.prevWeekAvgHR": prevWeekAvgHR,
+        "appData.$.prevWeekAvgHRV": prevWeekAvgHRV,
+        "appData.$.prevWeekAvgTotalEpisode": prevWeekAvgTotalEpisode,
+        "appData.$.prevWeekAvgTotalDuration": prevWeekAvgTotalDuration,
+        "appData.$.activities": activities
       }
     },
     { upsert: false, new: true }
@@ -384,7 +524,21 @@ socket.on("biometricData", async (data) => {
             totalEpisode: 0,
             totalDuration: 0,
             averageHR: avgHR,
-            averageHRV: avgHRV
+            averageHRV: avgHRV,
+            recoveryScore,
+            stressLoadScore,
+            recoveryTrendScore,
+            byteScore,
+            prevWeekAvgRecoveryScore,
+            prevWeekAvgStressLoadScore,
+            prevWeekAvgRecoveryTrendScore,
+            prevWeekAvgByteScore,
+            prevWeekAvgHR,
+            prevWeekAvgHRV,
+            prevWeekAvgTotalEpisode,
+            prevWeekAvgTotalDuration,
+            activities,
+            substances: []
           }
         }
       }
