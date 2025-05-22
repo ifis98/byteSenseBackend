@@ -345,8 +345,14 @@ socket.on("biometricData", async (data) => {
     allPoints = allPoints.concat(hourEntry.hourData);
   }
 
-  const validHR = allPoints.map(d => parseFloat(d.HR)).filter(x => !isNaN(x));
-  const validHRV = allPoints.map(d => parseFloat(d.HRV)).filter(x => !isNaN(x));
+  const validPoints = allPoints.filter(p => {
+    const hr = parseFloat(p.HR);
+    const hrv = parseFloat(p.HRV);
+    return !isNaN(hr) && hr !== 0 && !isNaN(hrv);
+  });
+
+  const validHR = validPoints.map(d => parseFloat(d.HR));
+  const validHRV = validPoints.map(d => parseFloat(d.HRV));
 
   const avgHR = validHR.length ? (validHR.reduce((a, b) => a + b, 0) / validHR.length) : 0;
   const avgHRV = validHRV.length ? (validHRV.reduce((a, b) => a + b, 0) / validHRV.length) : 0;
@@ -355,6 +361,7 @@ socket.on("biometricData", async (data) => {
   // Sleep Activities and Score Calculations
   // -------------------------------------------------------
   const sorted = allPoints.slice().sort((a,b) => new Date(a.ts) - new Date(b.ts));
+  const sortedValid = validPoints.slice().sort((a,b)=> new Date(a.ts) - new Date(b.ts));
   let activities = [];
   let totalSleepSec = 0;
   let segStart = null;
@@ -395,7 +402,7 @@ socket.on("biometricData", async (data) => {
   // Restfulness component
   let spikes = 0;
   let window = [];
-  for(const samp of sorted){
+  for(const samp of sortedValid){
     const tsMs = new Date(samp.ts).getTime();
     while(window.length && tsMs - new Date(window[0].ts).getTime() > 120000){
       window.shift();
@@ -420,7 +427,7 @@ socket.on("biometricData", async (data) => {
 
   // Recovery Trend Score via linear regression
   let slope = 0;
-  const trendPoints = sorted.map(p=>({x:(new Date(p.ts)-new Date(sorted[0].ts))/60000,y:parseFloat(p.HRV)})).filter(p=>!isNaN(p.y));
+  const trendPoints = sortedValid.map(p=>({x:(new Date(p.ts)-new Date(sortedValid[0].ts))/60000,y:parseFloat(p.HRV)})).filter(p=>!isNaN(p.y));
   if(trendPoints.length>1){
     const n = trendPoints.length;
     const sumX = trendPoints.reduce((a,b)=>a+b.x,0);
