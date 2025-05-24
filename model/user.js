@@ -8,8 +8,7 @@ const UserSchema = mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
-    uniqueCaseInsensitive: true
+    lowercase: true
   },
   userName: {
     type: String,
@@ -39,6 +38,7 @@ const UserSchema = mongoose.Schema({
 });
 
 UserSchema.plugin(uniqueValidator);
+UserSchema.index({ email: 1, isDoctor: 1 }, { unique: true });
 
 UserSchema.virtual('patientList',{
   ref: 'PersonalPatientList',
