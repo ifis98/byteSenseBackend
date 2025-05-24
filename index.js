@@ -421,6 +421,27 @@ socket.on("biometricData", async (data) => {
   const stdHRV = validHRV.length ? Math.sqrt(validHRV.reduce((s,x)=>s+Math.pow(x-meanHRV,2),0)/validHRV.length) : 0;
   const stabilityComp = meanHRV ? clamp(100 - (((stdHRV/meanHRV)/0.3)*100),0,100) : 0;
 
+  // Recovery depth calculation
+  const hrAsc = validHR.slice().sort((a,b)=>a-b);
+  const hrvAsc = validHRV.slice().sort((a,b)=>a-b);
+  const hrLowThresh = hrAsc.length ? hrAsc[Math.floor(hrAsc.length*0.25)] : Infinity;
+  const hrvHighThresh = hrvAsc.length ? hrvAsc[Math.floor(hrvAsc.length*0.75)] : 0;
+
+  let deepRecoverySec = 0;
+  for(let i=0;i<sortedValid.length;i++){
+    const samp = sortedValid[i];
+    const hrVal = parseFloat(samp.HR);
+    const hrvVal = parseFloat(samp.HRV);
+    if(hrVal <= hrLowThresh && hrvVal >= hrvHighThresh){
+      let nextTs = i < sortedValid.length-1 ? new Date(sortedValid[i+1].ts).getTime() : new Date(samp.ts).getTime() + 10000;
+      let deltaSec = (nextTs - new Date(samp.ts).getTime())/1000;
+      if(isNaN(deltaSec) || deltaSec <= 0 || deltaSec > 60) deltaSec = 10;
+      deepRecoverySec += deltaSec;
+    }
+  }
+  const deepRecoveryMinutes = deepRecoverySec/60;
+  let recoveryDepthScore = clamp((deepRecoveryMinutes/60)*100,0,100);
+
   let recoveryScore = clamp(0.35*hrvMaxComp + 0.25*hrDropComp + 0.25*restfulnessComp + 0.15*stabilityComp,0,100);
 
   let stressLoadScore = clamp(100 - (( (avgHR/80)*0.4 + (avgHRV? (70/avgHRV)*0.4 : 0) + (hrDropComp/100)*0.2 )*100),0,100);
@@ -440,7 +461,7 @@ socket.on("biometricData", async (data) => {
     }
   }
   let recoveryTrendScore = clamp(50 + (slope*1000),0,100);
-  const byteScore = (recoveryScore + stressLoadScore + recoveryTrendScore)/3;
+  const byteScore = clamp(0.4*stressLoadScore + 0.3*recoveryTrendScore + 0.3*recoveryDepthScore,0,100);
 
 
   // -------------------------------------------------------
@@ -472,6 +493,7 @@ socket.on("biometricData", async (data) => {
   const prevWeekAvgRecoveryScore = avgField(prevWeekData,'recoveryScore');
   const prevWeekAvgStressLoadScore = avgField(prevWeekData,'stressLoadScore');
   const prevWeekAvgRecoveryTrendScore = avgField(prevWeekData,'recoveryTrendScore');
+  const prevWeekAvgRecoveryDepthScore = avgField(prevWeekData,'recoveryDepthScore');
   const prevWeekAvgHR = avgField(prevWeekData,'averageHR');
   const prevWeekAvgHRV = avgField(prevWeekData,'averageHRV');
   const prevWeekAvgTotalEpisode = avgField(prevWeekData,'totalEpisode');
@@ -498,10 +520,12 @@ socket.on("biometricData", async (data) => {
         "appData.$.recoveryScore": recoveryScore,
         "appData.$.stressLoadScore": stressLoadScore,
         "appData.$.recoveryTrendScore": recoveryTrendScore,
+        "appData.$.recoveryDepthScore": recoveryDepthScore,
         "appData.$.byteScore": byteScore,
         "appData.$.prevWeekAvgRecoveryScore": prevWeekAvgRecoveryScore,
         "appData.$.prevWeekAvgStressLoadScore": prevWeekAvgStressLoadScore,
         "appData.$.prevWeekAvgRecoveryTrendScore": prevWeekAvgRecoveryTrendScore,
+        "appData.$.prevWeekAvgRecoveryDepthScore": prevWeekAvgRecoveryDepthScore,
         "appData.$.prevWeekAvgHR": prevWeekAvgHR,
         "appData.$.prevWeekAvgHRV": prevWeekAvgHRV,
         "appData.$.prevWeekAvgTotalEpisode": prevWeekAvgTotalEpisode,
@@ -526,10 +550,12 @@ socket.on("biometricData", async (data) => {
             recoveryScore,
             stressLoadScore,
             recoveryTrendScore,
+            recoveryDepthScore,
             byteScore,
             prevWeekAvgRecoveryScore,
             prevWeekAvgStressLoadScore,
             prevWeekAvgRecoveryTrendScore,
+            prevWeekAvgRecoveryDepthScore,
             prevWeekAvgHR,
             prevWeekAvgHRV,
             prevWeekAvgTotalEpisode,
