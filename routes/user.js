@@ -292,9 +292,9 @@ router.post('/forgotpassword', function (req, res, next) {
       });
     },
     function (token, done) {
-      User.findOne({ email: req.body.email }, function (err, user) {
+      User.findOne({ email: req.body.email, userName: req.body.userName }, function (err, user) {
         if (!user) {
-          return res.status(400).json({ message: "Invalid email" });
+          return res.status(400).json({ message: "Invalid email or username" });
         }
 
         user.resetPasswordToken = token;
@@ -318,13 +318,13 @@ router.post('/forgotpassword', function (req, res, next) {
       port: 465,
       secure: true,
       auth: {
-        user: 'bytesense.noreply@gmail.com',
-        pass: 'ebnybuudugoardih'
-      }  
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASS
+      }
     });
       var mailOptions = {
         to: user.email,
-        from: 'bytesense.noreply@gmail.com',
+        from: process.env.GMAIL_USER,
         subject: 'Password Reset',
         text: 'Hi, username: '+user.userName+'! You are receiving this because you have requested the reset of the password for your account.\n\n' +
           'Please click on the following link, or paste this into your browser to complete the process:\n\n' +
@@ -361,23 +361,17 @@ router.put('/reset/:token', function (req, res) {
     },
     function (user, done) {
       var transport = nodemailer.createTransport({
-        // host: 'smtp.mailtrap.io',
-        // port: 2525,
-        // auth: {
-        //   user: 'b313c5a451f408',
-        //   pass: '2a5501a82abb70'
-        // }
         service: 'gmail',
         port: 465,
         secure: true,
         auth: {
-          user: 'bytesense.noreply@gmail.com',
-          pass: 'ebnybuudugoardih'
-        } 
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASS
+        }
       });
       var mailOptions = {
         to: user.email,
-        from: 'bytesense.noreply@gmail.com',
+        from: process.env.GMAIL_USER,
         subject: 'Password Reset Successful',
         text: 'Hello,\n\n\n' + user.userName +
           ' your password has been changed successfully\n\n'
